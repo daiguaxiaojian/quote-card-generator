@@ -10,7 +10,7 @@ import {
 } from './types'
 import type { BadgeType, QuoteState } from './types'
 
-/** 导出尺寸固定为 275×370（预览仍按 3x 渲染以保证显示清晰） */
+/** 导出固定为 1100×1480（275:370 比例的 4x，适合发小红书；预览仍按 3x 渲染） */
 
 function loadState(): QuoteState {
   try {
@@ -107,10 +107,11 @@ export default function App() {
     reader.readAsDataURL(file)
   }
 
-  /** 导出固定 275×370 PNG（scale 恒为 1） */
+  /** 导出固定 1100×1480 PNG（275:370 比例的 4x；275×370 像素太少，
+      发小红书会被放大 3–4 倍显示所以发虚） */
   const exportPng = (): void => {
     const offscreen = document.createElement('canvas')
-    renderQuote(offscreen, state, avatarRef.current, 1)
+    renderQuote(offscreen, state, avatarRef.current, 4)
     offscreen.toBlob((blob) => {
       if (!blob) return
       const url = URL.createObjectURL(blob)
@@ -236,7 +237,7 @@ export default function App() {
             </div>
             <div className="field">
               <label>图片尺寸</label>
-              <div>275 × 370（固定）</div>
+              <div>275 : 370（导出 1100×1480）</div>
             </div>
           </div>
           <label className="sliderRow">
@@ -284,9 +285,9 @@ export default function App() {
 
           <h2>⑤ 导出图片</h2>
           <button type="button" className="primary" onClick={() => exportPng()}>
-            ↓ 生成并下载图片（275×370）
+            ↓ 生成并下载图片（1100×1480 高清）
           </button>
-          <div className="hint">图片尺寸固定 275×370。全部内容在浏览器本地生成，不会上传到服务器。</div>
+          <div className="hint">图片比例 275:370，导出 1100×1480 高清图，适合发小红书。全部内容在浏览器本地生成，不会上传到服务器。</div>
         </section>
 
         <section className="panel previewPanel">
