@@ -65,7 +65,9 @@ export default function App() {
     img.src = avatarSrc
   }, [avatarSrc])
 
-  // 实时预览：状态变化后用 rAF 节流重绘
+  // 实时预览：状态变化后用 rAF 节流重绘。
+  // 预览按 3x（825×1110）渲染：画布 CSS 宽度最大 510px，1x（275×370）
+  // 原图会被浏览器放大显示导致发虚，高分辨率渲染再缩小显示才清晰。
   useEffect(() => {
     let raf = 0
     let cancelled = false
@@ -73,7 +75,7 @@ export default function App() {
       if (cancelled) return
       const canvas = canvasRef.current
       if (!canvas) return
-      const result = renderQuote(canvas, state, avatarRef.current, 1)
+      const result = renderQuote(canvas, state, avatarRef.current, 3)
       setOverflow((prev) => (prev === result.overflow ? prev : result.overflow))
     })
     return () => {
@@ -306,7 +308,7 @@ export default function App() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-            <canvas ref={canvasRef} width={275} height={370} />
+            <canvas ref={canvasRef} width={825} height={1110} />
           </div>
           <div className="hint">可把头像图片直接拖到预览图上更换</div>
           {overflow && (
