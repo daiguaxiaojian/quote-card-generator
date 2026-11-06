@@ -1,21 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent } from 'react'
 import AvatarEditor from './components/AvatarEditor'
-import { canvasHeight, renderQuote } from './render'
+import { renderQuote } from './render'
 import { getTemplate, TEMPLATES } from './templates'
 import {
   AVATAR_PERSIST_LIMIT,
   DEFAULT_STATE,
   STORAGE_KEY,
 } from './types'
-import type { AspectRatio, BadgeType, QuoteState } from './types'
+import type { BadgeType, QuoteState } from './types'
 
-const ASPECT_OPTIONS: { value: AspectRatio; label: string }[] = [
-  { value: '2:3', label: '2:3（竖版）' },
-  { value: '1:1', label: '1:1（方形）' },
-  { value: '4:5', label: '4:5' },
-  { value: '9:16', label: '9:16（长竖版）' },
-]
+/** 导出尺寸固定：1x=275×370，2x=550×740，3x=825×1110 */
 
 function loadState(): QuoteState {
   try {
@@ -130,8 +125,6 @@ export default function App() {
     setState(DEFAULT_STATE)
   }
 
-  const height = canvasHeight(state.aspect)
-
   return (
     <div className="wrap">
       <header>
@@ -236,18 +229,8 @@ export default function App() {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="aspect">图片比例</label>
-              <select
-                id="aspect"
-                value={state.aspect}
-                onChange={(e) => update({ aspect: e.target.value as AspectRatio })}
-              >
-                {ASPECT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              <label>图片尺寸</label>
+              <div>275 × 370（固定）</div>
             </div>
           </div>
           <label className="sliderRow">
@@ -310,7 +293,7 @@ export default function App() {
           <button type="button" className="primary" onClick={() => exportPng(2)}>
             ↓ 生成并下载图片（2x）
           </button>
-          <div className="hint">全部内容在浏览器本地生成，不会上传到服务器。</div>
+          <div className="hint">图片尺寸固定 275×370；1x / 2x / 3x 导出为 275×370 / 550×740 / 825×1110。全部内容在浏览器本地生成，不会上传到服务器。</div>
         </section>
 
         <section className="panel previewPanel">
@@ -323,7 +306,7 @@ export default function App() {
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
           >
-            <canvas ref={canvasRef} width={1012} height={height} />
+            <canvas ref={canvasRef} width={275} height={370} />
           </div>
           <div className="hint">可把头像图片直接拖到预览图上更换</div>
           {overflow && (
