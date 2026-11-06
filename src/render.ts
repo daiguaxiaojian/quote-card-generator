@@ -233,7 +233,7 @@ export function renderQuote(
   ctx.fillText(`@${handle}`, 218, ay + 51)
 
   // 正文：自动缩小字号直至放得下（最低 60%）
-  const bodyStartY = ay + 213
+  const bodyStartY = ay + 170
   const maxBodyY = height - 74
   const layout = layoutBody(ctx, state, bodyStartY, maxBodyY)
   const overflow = layout.endY > maxBodyY
