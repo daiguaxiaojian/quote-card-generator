@@ -1,7 +1,5 @@
 export type BadgeType = 'blue' | 'orange' | 'none'
 
-export type AspectRatio = '2:3' | '1:1' | '4:5' | '9:16'
-
 export interface QuoteState {
   /** 昵称 */
   name: string
@@ -20,7 +18,6 @@ export interface QuoteState {
   textColor: string
   /** 背景颜色 */
   bgColor: string
-  aspect: AspectRatio
   /** 头像缩放 1–3 */
   avatarZoom: number
   /** 头像平移偏移（基准画布 px，范围 ±75） */
@@ -54,7 +51,6 @@ export const DEFAULT_STATE: QuoteState = {
   lineHeight: 2.25,
   textColor: '#090909',
   bgColor: '#ffffff',
-  aspect: '2:3',
   avatarZoom: 1,
   avatarOffsetX: 0,
   avatarOffsetY: 0,
