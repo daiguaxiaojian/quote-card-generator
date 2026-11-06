@@ -117,6 +117,47 @@ button:hover { filter: brightness(0.97); }
 }
 .sliderRow input[type="range"] { width: 100%; accent-color: #4848ff; }
 .avatarEditor { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.proofResults {
+  margin-top: 12px;
+  border: 1px solid #dce2fb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8f9ff;
+}
+.proofHeader {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.proofHeader strong { flex: 1; }
+.proofList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.proofList li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.proofField {
+  background: #eef0ff;
+  color: #3444a4;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.proofText { font-weight: 700; }
+.proofMsg { color: #65718b; }
+.proofFixBtn { padding: 6px 12px; }
 .avatarCropBox {
   border-radius: 50%;
   overflow: hidden;
