@@ -176,13 +176,16 @@ export function renderQuote(
   let ty = 104
   ctx.fillStyle = fg
   ctx.font = titleFont
+  let lastTitleBaseline = ty
   for (const line of titleLines) {
     ctx.fillText(line, 42, ty)
+    lastTitleBaseline = ty
     ty += 86
   }
 
-  // 分割线
-  const divY = Math.max(246, ty + 20)
+  // 分割线：紧跟标题最后一行（基线 +44），不再固定最小 y；
+  // 标题短时不再留白，标题长时自动下移
+  const divY = lastTitleBaseline + 44
   ctx.strokeStyle = dividerColor
   ctx.lineWidth = 1.5
   ctx.beginPath()
@@ -233,7 +236,7 @@ export function renderQuote(
   ctx.fillText(`@${handle}`, 218, ay + 51)
 
   // 正文：自动缩小字号直至放得下（最低 60%）
-  const bodyStartY = ay + 170
+  const bodyStartY = ay + 150
   const maxBodyY = height - 74
   const layout = layoutBody(ctx, state, bodyStartY, maxBodyY)
   const overflow = layout.endY > maxBodyY
