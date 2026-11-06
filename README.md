@@ -26,12 +26,11 @@ npm run preview    # 本地预览构建产物
 
 ## 部署（Cloudflare Pages）
 
-1. 将本仓库推送到 GitHub。
-2. 在 Cloudflare Pages 创建项目，选择该 GitHub 仓库。
-3. 构建命令：`npm run build`；输出目录：`dist`；Node 版本建议 20+。
-4. 绑定自定义域名后，Cloudflare 自动签发 HTTPS 证书；www 与非 www 可按需做重定向或同时绑定。
+当前线上部署方式：Cloudflare Pages 项目 `quote-card-generator`（生产分支 main），自定义域名 `quote.daiguaxiaojian.com`（CNAME 指向 `quote-card-generator.pages.dev`，HTTPS 由 Cloudflare 自动签发）。
 
-后续更新：修改代码后推送到 GitHub，Cloudflare Pages 会自动重新构建部署。
+构建命令：`npm run build`；输出目录：`dist`；Node 20+。
+
+后续更新：修改代码后推送到 GitHub main 分支，部署服务器每 10 分钟检查一次 main 分支 HEAD，有新提交时自动构建并部署（脚本 `deploy/auto_deploy.py`）。原生 Pages↔GitHub 自动部署需在 GitHub 安装 Cloudflare Pages 应用，当前未启用；如需改用原生方式，在 Pages 项目设置中连接 GitHub 仓库即可。
 
 ## 技术栈
 
