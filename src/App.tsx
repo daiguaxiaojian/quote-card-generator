@@ -10,7 +10,7 @@ import {
 } from './types'
 import type { BadgeType, QuoteState } from './types'
 
-/** 导出尺寸固定：1x=275×370，2x=550×740，3x=825×1110 */
+/** 导出尺寸固定为 275×370（预览仍按 3x 渲染以保证显示清晰） */
 
 function loadState(): QuoteState {
   try {
@@ -104,9 +104,10 @@ export default function App() {
     reader.readAsDataURL(file)
   }
 
-  const exportPng = (scale: number): void => {
+  /** 导出固定 275×370 PNG（scale 恒为 1） */
+  const exportPng = (): void => {
     const offscreen = document.createElement('canvas')
-    renderQuote(offscreen, state, avatarRef.current, scale)
+    renderQuote(offscreen, state, avatarRef.current, 1)
     offscreen.toBlob((blob) => {
       if (!blob) return
       const url = URL.createObjectURL(blob)
@@ -279,23 +280,10 @@ export default function App() {
           </div>
 
           <h2>⑤ 导出图片</h2>
-          <div className="exportRow">
-            <span>清晰度：</span>
-            {[1, 2, 3].map((scale) => (
-              <button
-                key={scale}
-                type="button"
-                className="btn"
-                onClick={() => exportPng(scale)}
-              >
-                {scale}x PNG
-              </button>
-            ))}
-          </div>
-          <button type="button" className="primary" onClick={() => exportPng(2)}>
-            ↓ 生成并下载图片（2x）
+          <button type="button" className="primary" onClick={() => exportPng()}>
+            ↓ 生成并下载图片（275×370）
           </button>
-          <div className="hint">图片尺寸固定 275×370；1x / 2x / 3x 导出为 275×370 / 550×740 / 825×1110。全部内容在浏览器本地生成，不会上传到服务器。</div>
+          <div className="hint">图片尺寸固定 275×370。全部内容在浏览器本地生成，不会上传到服务器。</div>
         </section>
 
         <section className="panel previewPanel">
@@ -320,8 +308,8 @@ export default function App() {
             <button type="button" className="btn" onClick={resetToDefault}>
               恢复示例
             </button>
-            <button type="button" className="btn" onClick={() => exportPng(2)}>
-              下载 PNG（2x）
+            <button type="button" className="btn" onClick={() => exportPng()}>
+              下载 PNG
             </button>
           </div>
         </section>
