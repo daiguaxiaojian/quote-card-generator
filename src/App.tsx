@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent } from 'react'
 import AvatarEditor from './components/AvatarEditor'
 import { generateTitle } from './autoTitle'
+import { proofread } from './proofread'
+import type { ProofIssue } from './proofread'
 import { renderQuote } from './render'
 import { getTemplate, TEMPLATES } from './templates'
 import {
@@ -33,6 +35,11 @@ export default function App() {
   const [overflow, setOverflow] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [avatarVersion, setAvatarVersion] = useState(0)
+  const [proof, setProof] = useState<{
+    title: string
+    body: string
+    issues: ProofIssue[]
+  } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const avatarRef = useRef<HTMLImageElement | null>(null)
 
@@ -127,6 +134,64 @@ export default function App() {
   const handleAutoTitle = (): void => {
     const title = generateTitle(state.body)
     if (title) update({ title })
+  }
+
+  const handleProofread = (): void => {
+    setProof({
+      title: state.title,
+      body: state.body,
+      issues: proofread(state.title, state.body),
+    })
+  }
+
+  // 校对结果是否过期：内容改动后位置失效，需重新检查
+  const proofStale =
+    proof !== null &&
+    (proof.title !== state.title || proof.body !== state.body)
+
+  const applyProofFix = (target: ProofIssue): void => {
+    if (!proof || proofStale || target.replacement === null) return
+    const text = target.field === 'title' ? state.title : state.body
+    const next =
+      text.slice(0, target.start) +
+      target.replacement +
+      text.slice(target.end)
+    const nextTitle = target.field === 'title' ? next : state.title
+    const nextBody = target.field === 'body' ? next : state.body
+    setState((prev) => ({
+      ...prev,
+      title: nextTitle,
+      body: nextBody,
+    }))
+    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, nextBody) })
+  }
+
+  const applyAllProofFixes = (): void => {
+    if (!proof || proofStale) return
+    let nextTitle = state.title
+    let nextBody = state.body
+    for (const field of ['title', 'body'] as const) {
+      const fixes = proof.issues
+        .filter(
+          (i) =>
+            i.field === field &&
+            i.fixable &&
+            i.bulk &&
+            i.replacement !== null,
+        )
+        .sort((a, b) => b.start - a.start)
+      let text = field === 'title' ? nextTitle : nextBody
+      for (const fix of fixes) {
+        text =
+          text.slice(0, fix.start) +
+          (fix.replacement ?? '') +
+          text.slice(fix.end)
+      }
+      if (field === 'title') nextTitle = text
+      else nextBody = text
+    }
+    setState((prev) => ({ ...prev, title: nextTitle, body: nextBody }))
+    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, nextBody) })
   }
 
   const handleTemplateChange = (templateId: string): void => {
@@ -232,6 +297,74 @@ export default function App() {
               value={state.body}
               onChange={(e) => update({ body: e.target.value })}
             />
+            <button
+              type="button"
+              className="btn btnGhost"
+              style={{ marginTop: 8 }}
+              onClick={handleProofread}
+            >
+              🔍 检查错别字与标点
+            </button>
+            {proof && (
+              <div className="proofResults">
+                <div className="proofHeader">
+                  <strong>
+                    检查结果（共 {proof.issues.length} 处）
+                  </strong>
+                  {proof.issues.some((i) => i.fixable && i.bulk) &&
+                    !proofStale && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={applyAllProofFixes}
+                      >
+                        全部修正
+                      </button>
+                    )}
+                  <button
+                    type="button"
+                    className="btn btnGhost"
+                    onClick={() => setProof(null)}
+                  >
+                    关闭
+                  </button>
+                </div>
+                {proofStale && (
+                  <div className="warning" role="alert">
+                    内容已改动，检查结果可能过期，请重新检查。
+                  </div>
+                )}
+                {proof.issues.length === 0 ? (
+                  <div className="hint">
+                    ✓ 未发现错别字或标点问题（规则检查，仅供参考，不能保证发现所有错误）。
+                  </div>
+                ) : (
+                  <ul className="proofList">
+                    {proof.issues.map((item, idx) => (
+                      <li key={`${item.field}-${item.start}-${idx}`}>
+                        <span className="proofField">
+                          {item.field === 'title' ? '标题' : '正文'}
+                        </span>
+                        <span className="proofText">
+                          {item.text ? `「${item.text}」` : ''}
+                          {item.suggestion ? ` → 「${item.suggestion}」` : ''}
+                        </span>
+                        <span className="proofMsg">{item.message}</span>
+                        {!proofStale && item.fixable && item.replacement !== null && (
+                          <button
+                            type="button"
+                            className="btn proofFixBtn"
+                            onClick={() => applyProofFix(item)}
+                          >
+                            修正
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           <h2>④ 样式设置</h2>
