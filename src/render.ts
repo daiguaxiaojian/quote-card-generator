@@ -1,19 +1,18 @@
-import type { AspectRatio, QuoteState } from './types'
+import type { QuoteState } from './types'
 import { getTemplate } from './templates'
 
+/** 设计画布宽（内部排版坐标系，导出时等比缩放到输出尺寸） */
 export const BASE_WIDTH = 1012
+
+/** 1x 导出尺寸固定为 275×370 */
+export const OUTPUT_WIDTH = 275
+export const OUTPUT_HEIGHT = 370
 
 export const FONT_STACK = '"Microsoft YaHei", "PingFang SC", system-ui, sans-serif'
 
-const ASPECT_VALUES: Record<AspectRatio, number> = {
-  '2:3': 2 / 3,
-  '1:1': 1,
-  '4:5': 4 / 5,
-  '9:16': 9 / 16,
-}
-
-export function canvasHeight(aspect: AspectRatio): number {
-  return Math.round(BASE_WIDTH / ASPECT_VALUES[aspect])
+/** 设计画布高：按 275:370 比例换算 */
+export function canvasHeight(): number {
+  return Math.round((BASE_WIDTH * OUTPUT_HEIGHT) / OUTPUT_WIDTH)
 }
 
 /** 逐字换行：与 v1 相同的按字符 measureText 方式，保证中文换行一致 */
@@ -148,12 +147,14 @@ export function renderQuote(
   avatarImage: HTMLImageElement | null,
   scale = 1,
 ): RenderResult {
-  const height = canvasHeight(state.aspect)
-  canvas.width = BASE_WIDTH * scale
-  canvas.height = height * scale
+  const height = canvasHeight()
+  canvas.width = OUTPUT_WIDTH * scale
+  canvas.height = OUTPUT_HEIGHT * scale
   const ctx = canvas.getContext('2d')
   if (!ctx) return { overflow: false, bodyFontSize: state.fontSize }
-  ctx.setTransform(scale, 0, 0, scale, 0, 0)
+  // 设计坐标系（1012 宽）→ 输出尺寸（275×370 起）的等比缩放
+  const s = (OUTPUT_WIDTH / BASE_WIDTH) * scale
+  ctx.setTransform(s, 0, 0, s, 0, 0)
 
   const template = getTemplate(state.templateId)
   const fg = state.textColor
