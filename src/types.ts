@@ -48,7 +48,7 @@ export const DEFAULT_STATE: QuoteState = {
   body: DEFAULT_BODY,
   templateId: 'classic',
   fontSize: 43,
-  lineHeight: 2.25,
+  lineHeight: 1.8,
   textColor: '#090909',
   bgColor: '#ffffff',
   avatarZoom: 1,
