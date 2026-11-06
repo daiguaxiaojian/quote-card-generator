@@ -18,7 +18,10 @@ function loadState(): QuoteState {
     if (!saved) return DEFAULT_STATE
     const parsed = JSON.parse(saved) as Partial<QuoteState>
     if (typeof parsed !== 'object' || parsed === null) return DEFAULT_STATE
-    return { ...DEFAULT_STATE, ...parsed }
+    const state = { ...DEFAULT_STATE, ...parsed }
+    // 旧默认行距 2.25 → 1.8：存量状态若仍是旧默认值，跟随新默认
+    if (parsed.lineHeight === 2.25) state.lineHeight = 1.8
+    return state
   } catch {
     return DEFAULT_STATE
   }
