@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent } from 'react'
 import AvatarEditor from './components/AvatarEditor'
+import { generateTitle } from './autoTitle'
 import { renderQuote } from './render'
 import { getTemplate, TEMPLATES } from './templates'
 import {
@@ -123,6 +124,11 @@ export default function App() {
     }, 'image/png')
   }
 
+  const handleAutoTitle = (): void => {
+    const title = generateTitle(state.body)
+    if (title) update({ title })
+  }
+
   const handleTemplateChange = (templateId: string): void => {
     const t = getTemplate(templateId)
     update({ templateId, bgColor: t.bg, textColor: t.fg })
@@ -209,6 +215,15 @@ export default function App() {
               value={state.title}
               onChange={(e) => update({ title: e.target.value })}
             />
+            <button
+              type="button"
+              className="btn btnGhost"
+              style={{ marginTop: 8 }}
+              onClick={handleAutoTitle}
+            >
+              ✨ 根据正文自动生成标题
+            </button>
+            <div className="hint">从正文中挑一句最有代表性的话做标题，点一下才会填，不会自己改你写好的标题。</div>
           </div>
           <div className="field">
             <label htmlFor="body">正文（空行表示分段）</label>
