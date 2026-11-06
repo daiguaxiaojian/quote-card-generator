@@ -97,7 +97,6 @@ button:hover { filter: brightness(0.97); }
 .preview canvas { width: 100%; display: block; }
 .hint { font-size: 12px; color: #7a849b; margin-top: 8px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.exportRow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .warning {
   background: #fff3cd;
   color: #856404;
