@@ -1,3 +1,5 @@
+import type { BodyImage } from './bodyImages'
+
 export type BadgeType = 'blue' | 'orange' | 'none'
 
 export interface QuoteState {
@@ -25,6 +27,8 @@ export interface QuoteState {
   avatarOffsetY: number
   /** 自定义头像 data URL；null 表示使用默认 public/avatar.jpg */
   avatarDataUrl: string | null
+  /** 正文插图（按 id 索引）；正文中的 [[img:xxxxxxxx]] 标记行引用这里的图片 */
+  bodyImages: Record<string, BodyImage>
 }
 
 export const DEFAULT_BODY = [
@@ -55,9 +59,13 @@ export const DEFAULT_STATE: QuoteState = {
   avatarOffsetX: 0,
   avatarOffsetY: 0,
   avatarDataUrl: null,
+  bodyImages: {},
 }
 
 export const STORAGE_KEY = 'quote-card-state-v1'
 
 /** data URL 超过该体积时不写入 localStorage（头像仅保留在当前会话内存中） */
 export const AVATAR_PERSIST_LIMIT = 800 * 1024
+
+/** 正文插图 data URL 总体积超过该值时不写入 localStorage（仅保留在当前会话内存中） */
+export const BODY_IMAGES_PERSIST_LIMIT = 800 * 1024
