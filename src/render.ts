@@ -1,4 +1,6 @@
 import type { QuoteState } from './types'
+import type { BodyImage } from './bodyImages'
+import { parseImageMarker } from './bodyImages'
 import { getTemplate } from './templates'
 
 /** 设计画布宽（内部排版坐标系，导出时等比缩放到输出尺寸） */
@@ -9,6 +11,18 @@ export const OUTPUT_WIDTH = 275
 export const OUTPUT_HEIGHT = 370
 
 export const FONT_STACK = '"Microsoft YaHei", "PingFang SC", system-ui, sans-serif'
+
+/** 正文插图：通栏宽（与正文同宽），上下各留白 */
+export const BODY_IMG_WIDTH = 925
+export const BODY_IMG_GAP = 24
+/** 单张插图在设计画布上的最大显示高度（超高图等比压到该高度） */
+export const BODY_IMG_MAX_H = 720
+
+/** 一张插图块占的纵向高度（含上下留白）；测高与绘制共用，保持一致 */
+export function bodyImageHeight(img: BodyImage): number {
+  const h = (BODY_IMG_WIDTH * img.height) / img.width
+  return Math.min(h, BODY_IMG_MAX_H) + BODY_IMG_GAP * 2
+}
 
 /** 设计画布高：按 275:370 比例换算 */
 export function canvasHeight(): number {
@@ -85,12 +99,20 @@ function measureBody(
   fontSize: number,
   lineHeight: number,
   startY: number,
+  images: Record<string, BodyImage>,
 ): { endY: number; lines: number } {
   const font = `500 ${fontSize}px ${FONT_STACK}`
   const lh = fontSize * lineHeight
   let y = startY
   let lines = 0
   for (const paragraph of body.split('\n')) {
+    const imgId = parseImageMarker(paragraph)
+    if (imgId) {
+      // 插图块：无对应图片时不占高度（标记行本身不绘制）
+      const img = images[imgId]
+      if (img) y += bodyImageHeight(img)
+      continue
+    }
     if (!paragraph.trim()) {
       y += lh * 0.78
       continue
@@ -114,10 +136,10 @@ export function layoutBody(
 ): BodyLayout {
   const minSize = state.fontSize * 0.6
   let fontSize = state.fontSize
-  let measured = measureBody(ctx, state.body, fontSize, state.lineHeight, startY)
+  let measured = measureBody(ctx, state.body, fontSize, state.lineHeight, startY, state.bodyImages)
   while (measured.endY > maxY && fontSize > minSize) {
     fontSize = Math.max(minSize, fontSize - 1)
-    measured = measureBody(ctx, state.body, fontSize, state.lineHeight, startY)
+    measured = measureBody(ctx, state.body, fontSize, state.lineHeight, startY, state.bodyImages)
   }
   return {
     startY,
@@ -139,12 +161,14 @@ export interface RenderResult {
  * @param canvas 目标 canvas（预览或导出共用）
  * @param state 编辑器状态
  * @param avatarImage 已加载的头像图片；null 时画灰色占位
+ * @param bodyImageElements 已加载的正文插图（按 id 索引）；缺失时画灰色占位块
  * @param scale 导出倍率（1/2/3），预览时为 1
  */
 export function renderQuote(
   canvas: HTMLCanvasElement,
   state: QuoteState,
   avatarImage: HTMLImageElement | null,
+  bodyImageElements: Map<string, HTMLImageElement>,
   scale = 1,
 ): RenderResult {
   const height = canvasHeight()
@@ -246,6 +270,28 @@ export function renderQuote(
   ctx.font = bodyFont
   let y = bodyStartY
   for (const paragraph of state.body.split('\n')) {
+    const imgId = parseImageMarker(paragraph)
+    if (imgId) {
+      const img = state.bodyImages[imgId]
+      if (!img) continue
+      const blockH = bodyImageHeight(img)
+      // 超高图按最大高度等比压窄、水平居中，不拉伸变形
+      const aspectH = (BODY_IMG_WIDTH * img.height) / img.width
+      const drawH = Math.min(aspectH, BODY_IMG_MAX_H)
+      const drawW = drawH * (img.width / img.height)
+      const dx = 42 + (BODY_IMG_WIDTH - drawW) / 2
+      const el = bodyImageElements.get(imgId)
+      if (el && el.complete && el.naturalWidth > 0) {
+        ctx.drawImage(el, dx, y + BODY_IMG_GAP, drawW, drawH)
+      } else {
+        // 图片尚未加载完成或加载失败：按测高留出位置，画灰色占位
+        ctx.fillStyle = '#eeeeee'
+        ctx.fillRect(dx, y + BODY_IMG_GAP, drawW, drawH)
+        ctx.fillStyle = fg
+      }
+      y += blockH
+      continue
+    }
     if (!paragraph.trim()) {
       y += lh * 0.78
       continue
