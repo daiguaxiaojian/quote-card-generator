@@ -5,9 +5,20 @@ import { generateTitle } from './autoTitle'
 import { proofread } from './proofread'
 import type { ProofIssue } from './proofread'
 import { renderQuote } from './render'
+import {
+  downscaleImage,
+  makeImageId,
+  makeImageMarker,
+  maskImageMarkers,
+  parseImageMarker,
+  referencedImageIds,
+  stripImageMarkers,
+} from './bodyImages'
+import type { BodyImage } from './bodyImages'
 import { getTemplate, TEMPLATES } from './templates'
 import {
   AVATAR_PERSIST_LIMIT,
+  BODY_IMAGES_PERSIST_LIMIT,
   DEFAULT_STATE,
   STORAGE_KEY,
 } from './types'
@@ -24,6 +35,10 @@ function loadState(): QuoteState {
     const state = { ...DEFAULT_STATE, ...parsed }
     // 旧默认行距 2.25 → 1.8：存量状态若仍是旧默认值，跟随新默认
     if (parsed.lineHeight === 2.25) state.lineHeight = 1.8
+    // 旧存量没有 bodyImages 字段时补空对象
+    if (!parsed.bodyImages || typeof parsed.bodyImages !== 'object') {
+      state.bodyImages = {}
+    }
     return state
   } catch {
     return DEFAULT_STATE
@@ -42,6 +57,10 @@ export default function App() {
   } | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const avatarRef = useRef<HTMLImageElement | null>(null)
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null)
+  const bodyImageInputRef = useRef<HTMLInputElement | null>(null)
+  const bodyImageEls = useRef(new Map<string, HTMLImageElement>())
+  const [bodyImageVersion, setBodyImageVersion] = useState(0)
 
   const avatarSrc = state.avatarDataUrl ?? '/avatar.jpg'
 
@@ -50,17 +69,71 @@ export default function App() {
   }
 
   // 持久化：头像 data URL 超过 ~800KB 时只存其余字段，头像仅保留在会话内存中
+  // 正文插图同理：总体积超限时，保存的副本去掉图片及其标记行（本次会话内不受影响）
   useEffect(() => {
     try {
-      const toSave: QuoteState =
-        state.avatarDataUrl && state.avatarDataUrl.length > AVATAR_PERSIST_LIMIT
-          ? { ...state, avatarDataUrl: null }
-          : state
+      const imagesBytes = Object.values(state.bodyImages).reduce(
+        (n, img) => n + img.dataUrl.length,
+        0,
+      )
+      const imagesPersistable = imagesBytes <= BODY_IMAGES_PERSIST_LIMIT
+      let toSave: QuoteState = state
+      if (!imagesPersistable) {
+        toSave = {
+          ...state,
+          body: stripImageMarkers(state.body),
+          bodyImages: {},
+        }
+      }
+      if (toSave.avatarDataUrl && toSave.avatarDataUrl.length > AVATAR_PERSIST_LIMIT) {
+        toSave = { ...toSave, avatarDataUrl: null }
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
     } catch {
       // localStorage 不可用或已满时静默跳过
     }
   }, [state])
+
+  // 正文插图总体积是否超限（超限时仅保留在本次会话，刷新后需重新插入）
+  const bodyImagesBytes = Object.values(state.bodyImages).reduce(
+    (n, img) => n + img.dataUrl.length,
+    0,
+  )
+  const bodyImagesSessionOnly = bodyImagesBytes > BODY_IMAGES_PERSIST_LIMIT
+
+  // 加载正文插图图片
+  useEffect(() => {
+    const map = bodyImageEls.current
+    for (const id of [...map.keys()]) {
+      if (!state.bodyImages[id]) map.delete(id)
+    }
+    for (const [id, img] of Object.entries(state.bodyImages)) {
+      const existing = map.get(id)
+      if (existing && existing.src === img.dataUrl) continue
+      const el = new Image()
+      el.onload = () => {
+        map.set(id, el)
+        setBodyImageVersion((v) => v + 1)
+      }
+      el.onerror = () => {
+        map.delete(id)
+        setBodyImageVersion((v) => v + 1)
+      }
+      el.src = img.dataUrl
+    }
+  }, [state.bodyImages])
+
+  // 正文删掉标记行后，顺带清理无人引用的图片
+  useEffect(() => {
+    const referenced = new Set(referencedImageIds(state.body))
+    const orphaned = Object.keys(state.bodyImages).filter((id) => !referenced.has(id))
+    if (orphaned.length === 0) return
+    setState((prev) => {
+      const next = { ...prev.bodyImages }
+      for (const id of orphaned) delete next[id]
+      return { ...prev, bodyImages: next }
+    })
+  }, [state.body, state.bodyImages])
 
   // 加载头像图片
   useEffect(() => {
@@ -86,17 +159,69 @@ export default function App() {
       if (cancelled) return
       const canvas = canvasRef.current
       if (!canvas) return
-      const result = renderQuote(canvas, state, avatarRef.current, 3)
+      const result = renderQuote(canvas, state, avatarRef.current, bodyImageEls.current, 3)
       setOverflow((prev) => (prev === result.overflow ? prev : result.overflow))
     })
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
     }
-  }, [state, avatarVersion])
+  }, [state, avatarVersion, bodyImageVersion])
 
   const handleAvatarUpload = (dataUrl: string): void => {
     update({ avatarDataUrl: dataUrl, avatarZoom: 1, avatarOffsetX: 0, avatarOffsetY: 0 })
+  }
+
+  /** 正文插图：在正文光标处插入一张图片（先按正文宽度压缩为 JPG） */
+  const handleBodyImageFile = (file: File | undefined | null): void => {
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('仅支持 JPG / PNG / WebP 图片')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') return
+      downscaleImage(reader.result)
+        .then(({ dataUrl, width, height }) => {
+          const id = makeImageId()
+          const marker = makeImageMarker(id)
+          const el = bodyRef.current
+          const start = el?.selectionStart ?? state.body.length
+          const end = el?.selectionEnd ?? start
+          const before = state.body.slice(0, start)
+          const after = state.body.slice(end)
+          const prefix = before && !before.endsWith('\n') ? '\n' : ''
+          const suffix = after && !after.startsWith('\n') ? '\n' : ''
+          const nextBody = before + prefix + marker + suffix + after
+          const img: BodyImage = { id, dataUrl, width, height }
+          setState((prev) => ({
+            ...prev,
+            body: nextBody,
+            bodyImages: { ...prev.bodyImages, [id]: img },
+          }))
+          // 光标移到标记行之后
+          const cursor = before.length + prefix.length + marker.length + suffix.length
+          window.setTimeout(() => {
+            el?.focus()
+            el?.setSelectionRange(cursor, cursor)
+          }, 0)
+        })
+        .catch(() => alert('图片无法读取'))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleBodyImageDelete = (id: string): void => {
+    const nextBody = state.body
+      .split('\n')
+      .filter((line) => parseImageMarker(line) !== id)
+      .join('\n')
+    setState((prev) => {
+      const next = { ...prev.bodyImages }
+      delete next[id]
+      return { ...prev, body: nextBody, bodyImages: next }
+    })
   }
 
   const handleDrop = (e: ReactDragEvent<HTMLDivElement>): void => {
@@ -119,7 +244,7 @@ export default function App() {
       发小红书会被放大 3–4 倍显示所以发虚） */
   const exportPng = (): void => {
     const offscreen = document.createElement('canvas')
-    renderQuote(offscreen, state, avatarRef.current, 4)
+    renderQuote(offscreen, state, avatarRef.current, bodyImageEls.current, 4)
     offscreen.toBlob((blob) => {
       if (!blob) return
       const url = URL.createObjectURL(blob)
@@ -132,15 +257,17 @@ export default function App() {
   }
 
   const handleAutoTitle = (): void => {
-    const title = generateTitle(state.body)
+    // 标记行不参与选句
+    const title = generateTitle(stripImageMarkers(state.body))
     if (title) update({ title })
   }
 
   const handleProofread = (): void => {
+    // 标记行按等长空格掩盖：校对不报标记行的问题，返回的位置偏移仍对应原文
     setProof({
       title: state.title,
       body: state.body,
-      issues: proofread(state.title, state.body),
+      issues: proofread(state.title, maskImageMarkers(state.body)),
     })
   }
 
@@ -163,7 +290,7 @@ export default function App() {
       title: nextTitle,
       body: nextBody,
     }))
-    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, nextBody) })
+    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, maskImageMarkers(nextBody)) })
   }
 
   const applyAllProofFixes = (): void => {
@@ -191,7 +318,7 @@ export default function App() {
       else nextBody = text
     }
     setState((prev) => ({ ...prev, title: nextTitle, body: nextBody }))
-    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, nextBody) })
+    setProof({ title: nextTitle, body: nextBody, issues: proofread(nextTitle, maskImageMarkers(nextBody)) })
   }
 
   const handleTemplateChange = (templateId: string): void => {
@@ -294,17 +421,58 @@ export default function App() {
             <label htmlFor="body">正文（空行表示分段）</label>
             <textarea
               id="body"
+              ref={bodyRef}
               value={state.body}
               onChange={(e) => update({ body: e.target.value })}
             />
-            <button
-              type="button"
-              className="btn btnGhost"
-              style={{ marginTop: 8 }}
-              onClick={handleProofread}
-            >
-              🔍 检查错别字与标点
-            </button>
+            <input
+              ref={bodyImageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                handleBodyImageFile(e.target.files?.[0])
+                e.target.value = ''
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btnGhost"
+                onClick={() => bodyImageInputRef.current?.click()}
+              >
+                🖼️ 在光标处插入图片
+              </button>
+              <button
+                type="button"
+                className="btn btnGhost"
+                onClick={handleProofread}
+              >
+                🔍 检查错别字与标点
+              </button>
+            </div>
+            {referencedImageIds(state.body).length > 0 && (
+              <div className="imgThumbs">
+                {referencedImageIds(state.body).map((id) => {
+                  const img = state.bodyImages[id]
+                  if (!img) return null
+                  return (
+                    <div key={id} className="imgThumb">
+                      <img src={img.dataUrl} alt="正文插图" />
+                      <button type="button" onClick={() => handleBodyImageDelete(id)}>
+                        删除图片
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            <div className="hint">图片插在正文光标处，按正文宽度通栏显示；过大图片会自动压缩为 JPG。</div>
+            {bodyImagesSessionOnly && (
+              <div className="warning" role="alert">
+                图片总体积较大，仅保留在本次会话，刷新页面后需重新插入。
+              </div>
+            )}
             {proof && (
               <div className="proofResults">
                 <div className="proofHeader">
@@ -454,6 +622,7 @@ export default function App() {
           {overflow && (
             <div className="warning" role="alert">
               内容较长，建议缩小字号或精简内容
+              {referencedImageIds(state.body).length > 0 ? '、删除图片' : ''}
             </div>
           )}
           <div className="actions">
