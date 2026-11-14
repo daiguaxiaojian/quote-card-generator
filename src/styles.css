@@ -183,3 +183,7 @@ button:hover { filter: brightness(0.97); }
   .panel { padding: 17px; }
   h1 { font-size: 22px; }
 }
+.imgThumbs { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.imgThumb { width: 96px; border: 1px solid #dbe2ef; border-radius: 8px; overflow: hidden; background: #f4f6fb; }
+.imgThumb img { display: block; width: 100%; height: 72px; object-fit: cover; }
+.imgThumb button { width: 100%; border: 0; background: #fff; color: #c0392b; font-size: 12px; padding: 4px 0; cursor: pointer; }
